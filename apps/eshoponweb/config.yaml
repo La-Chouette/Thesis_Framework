@@ -1,0 +1,26 @@
+name: eshoponweb
+
+compose:
+  files:
+    - ../eShopOnWeb/docker-compose.yml
+    - ../eShopOnWeb/docker-compose.override.yml
+  apiService: eshoppublicapi-1
+  apiPort: 8080
+  readinessPath: /api/catalog-items
+
+auth:
+  type: bearer
+  loginPath: /api/authenticate
+  tokenField: token
+  users:
+    admin:
+      username: admin@microsoft.com
+      password: Pass@word1
+    customer:
+      username: demouser@microsoft.com
+      password: Pass@word1
+
+resources:
+  - name: catalog-item
+    path: /api/catalog-items
+    listField: catalogItems
