@@ -4,11 +4,33 @@ import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.testcontainers.containers.ComposeContainer;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.io.File;
+import java.time.Duration;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.*;
 
+@Testcontainers
 class EShopOnWebApiTest {
+
+    private static final String API_SERVICE = "eshoppublicapi-1";
+    private static final int API_PORT = 8080;
+
+    // Starts eShopOnWeb (web, API, database) from its compose files
+    @SuppressWarnings("resource")
+    @Container
+        static final ComposeContainer ESHOP = new ComposeContainer(
+            new File("../eShopOnWeb/docker-compose.yml"),
+            new File("../eShopOnWeb/docker-compose.override.yml"))
+        .withExposedService(API_SERVICE, API_PORT,
+            Wait.forHttp("/api/catalog-items")
+                .forStatusCode(200)
+                .withStartupTimeout(Duration.ofMinutes(5)));
 
     private static final String ADMIN_LOGIN = """
         { "username": "admin@microsoft.com", "password": "Pass@word1" }
@@ -26,10 +48,11 @@ class EShopOnWebApiTest {
 
     @BeforeAll
     static void setup() {
-        RestAssured.baseURI = "http://localhost:5200";
+        String host = ESHOP.getServiceHost(API_SERVICE, API_PORT);
+        int port = ESHOP.getServicePort(API_SERVICE, API_PORT);
+        RestAssured.baseURI = "http://" + host + ":" + port;
     }
 
-    // 1. Reading the product list works without login
     @Test
     void catalogListReturnsProducts() {
         given()
@@ -40,7 +63,6 @@ class EShopOnWebApiTest {
             .body("catalogItems", not(empty()));
     }
 
-    // 2. Admin login returns a token
     @Test
     void adminLoginReturnsToken() {
         given()
@@ -53,7 +75,6 @@ class EShopOnWebApiTest {
             .body("token", not(emptyOrNullString()));
     }
 
-    // 3. Creating a product WITHOUT a token is refused
     @Test
     void createItemWithoutTokenReturns401() {
         given()
@@ -65,7 +86,6 @@ class EShopOnWebApiTest {
             .statusCode(401);
     }
 
-    // 4. Creating a product WITH a token works
     @Test
     void createItemWithAdminTokenSucceeds() {
         String token =
